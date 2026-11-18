@@ -20,6 +20,9 @@ grep -Eq '^CARMEN_HOME = /opt/carmen$' Makefile.vars
 make -j"$jobs" export
 make -j"$jobs" phase1
 make prebuilt
+# O clone público traz os headers dessas interfaces privadas, mas não as .a.
+# Compila o transporte IPC mínimo do cenário usando os headers exportados acima.
+make -C "$CARMEN_HOME/docker/interfaces" -j"$jobs" install
 for module in ipc global maptools param_daemon proccontrol simulator_ackerman \
               localize_ackerman navigator_ackerman navigator_gui2; do
   make -C "$module" -j"$jobs" phase2

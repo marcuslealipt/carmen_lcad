@@ -35,8 +35,8 @@ são relatos daquela migração, **não testes executados nesta entrega Docker**
 
 `apt-packages.txt` é a lista efetivamente solicitada pelo Dockerfile. As versões exatas
 instaladas serão registradas em `/opt/carmen/build-logs/dpkg-packages.tsv` pelo build.
-Versões citadas na auditoria não substituem esse manifesto. Ainda falta executar apt,
-compilar e linkar na imagem limpa.
+Versões citadas na auditoria não substituem esse manifesto. O primeiro log do IPT já
+confirma apt/GtkGLExt/phase1, mas ainda falta concluir o link e gerar a imagem final.
 
 `build.sh` executa `export` e `phase1` na lista **ativa** de `PACKAGES` e `PACKAGES_LIB`
 do `src/Makefile`, incluindo `carmenpp` e excluindo bindings Java/Python. Isso preserva
@@ -138,8 +138,40 @@ mas ainda não mede erro de posição nem convergência estatística.
   mas sua compatibilidade efetiva depende do teste no Engine/kernel do `ipt-sim-01`.
 
 Ubuntu26 permanece a base porque existe migração específica no fork e nenhuma falha
-de build real desta imagem foi observada — o build não pôde ser executado. Não houve
-troca para Ubuntu20.04. Se uma ABI privada obrigatória impedir o perfil, avaliar um
+de ABI desta imagem foi demonstrada. A primeira falha real foi ausência de interfaces
+privadas no clone, descrita abaixo. Não houve troca para Ubuntu20.04.
+Se uma ABI privada obrigatória impedir o perfil, avaliar um
 Dockerfile separado para 20.04 com bibliotecas reais daquela distribuição, sem misturar
 os prebuilt de versões diferentes. Primeiro deve-se tentar recompilar a dependência
 com fonte disponível e conservar o log da primeira falha.
+
+## Primeiro build no IPT: interfaces privadas ausentes
+
+O log enviado pelo usuário em 18/11/2026 mostra a fase de bibliotecas concluída e
+`central`, `param_daemon` e `proccontrol` linkados. O link de `simulator_ackerman` falha
+com `cannot find -lroute_planner_interface` e `cannot find -ltask_manager_interface`.
+O erro posterior `exit: Illegal number: -1` vem da propagação do erro pelo Makefile
+legado; não é a causa original.
+
+Na árvore Git inspecionada, `lib/` contém somente metadados/compat e
+`prebuilt/ubuntu26-x86_64/lib/` contém `libtrailer_nlp.so`. Não existem ali as seis
+bibliotecas de interface requeridas pelo simulador/localizador/GUI. Os respectivos
+headers públicos estão presentes em `include/carmen/`, mas os fontes dos módulos
+privados não estão em `src/`. Assim, `make prebuilt` não resolve essa dependência.
+
+A correção fica em `docker/interfaces/`, sem alterar os Makefiles upstream ou criar
+arquivos `.a` vazios. São implementadas as chamadas IPC usadas pelo perfil Docker,
+com os nomes, structs e formatos dos headers existentes. O teste transmite 11 tipos
+de mensagem pelo central real, verificando conteúdo, inclusive strings e arrays.
+As bibliotecas são compiladas após a exportação dos headers e antes dos executáveis.
+
+Este subconjunto não implementa algoritmos de route/frenet/offroad nem o executor
+de missões do task_manager. Funções privadas fora do subconjunto continuam ausentes
+e provocarão erro de link se algum módulo futuro as exigir. A leitura de configuração
+de reboques aceita somente o tipo zero e recusa outros explicitamente. Isso delimita
+o perfil já proposto na v0.1, sem devolver uma configuração fictícia de caminhão.
+
+O contexto inicial registrado no log foi 15,55 GB. A filtragem ainda permite árvores
+grandes de fonte/terceiros; reduzir esse volume exige um levantamento próprio das
+dependências transitivas. Esta correção não exclui bibliotecas ou recursos adicionais
+sem validação. Apenas artefatos gerados em `docker/interfaces/` ficam fora do contexto.

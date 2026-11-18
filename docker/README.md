@@ -4,8 +4,10 @@ Fork: `marcuslealipt/carmen_lcad`, branch `feat/docker-ubuntu26`.
 Destino: `ipt-sim-01`, Ubuntu 22.04.5 x86_64, Docker Engine + Compose.
 Container: Ubuntu 26.04, CPU, sem CUDA. Não há instalação de dependências CARMEN no host.
 
-**Estado desta entrega: infraestrutura implementada; build da imagem e simulação ainda
-não executados.** O ambiente de desenvolvimento não disponibiliza Docker Engine.
+**Estado: build iniciado no ipt-sim-01; simulação ainda não validada.** O primeiro log
+confirmou instalação apt, GtkGLExt e phase1, mas o link do simulador parou por falta de
+interfaces de módulos privados. A correção em `docker/interfaces` gera as bibliotecas
+IPC necessárias usando os headers públicos do fork. O build completo precisa ser repetido.
 Os testes executados e seus limites estão em [VALIDACAO.md](VALIDACAO.md).
 Não há afirmação de que a GUI, a localização ou a navegação completa já funcionem.
 
@@ -57,8 +59,26 @@ Docker exclui os mapas de campanhas, logs e pesos neurais não usados neste cen�
 Em caso de falta de memória na compilação, repita o build com `export BUILD_JOBS=1`.
 Não é necessário alterar o sistema-base do host, instalar ROS ou instalar CUDA.
 
-Se o diretório já existe, não repita o clone: confira `git status`, faça `git fetch origin
-feat/docker-ubuntu26` e use `git switch feat/docker-ubuntu26` sem descartar mudanças locais.
+Para atualizar o checkout já criado e repetir o build após uma correção:
+
+```bash
+cd ~/carmen_lcad-docker
+git status --short
+git switch feat/docker-ubuntu26
+git pull --ff-only origin feat/docker-ubuntu26
+mkdir -p docker/logs
+export LOCAL_UID="$(id -u)"
+export LOCAL_GID="$(id -g)"
+export SOURCE_REVISION="$(git rev-parse HEAD)"
+export BUILD_JOBS=2
+set -o pipefail
+docker compose --progress plain -f docker/compose.yaml build carmen \
+  2>&1 | tee "docker/logs/build-$(date +%Y%m%d-%H%M%S).log"
+```
+
+Se Git apontar alterações locais conflitantes, preserve-as antes de continuar.
+Não é necessário usar `--no-cache` nem apagar imagens: as camadas de dependências
+podem ser reutilizadas. Só execute os testes de container quando o build terminar com zero.
 
 ## 2. Validar progressivamente
 
@@ -177,6 +197,13 @@ grid_mapping, rddf, sensores, libtf, prob_models, carmodel, libcontrol etc.
 auxiliares Docker. Alguns desses diretórios produzem também executáveis de teste.
 Nenhum módulo comentado no `PACKAGES` é adicionado automaticamente.
 
+Após `phase1`, `docker/interfaces/Makefile` gera seis bibliotecas estáticas de transporte
+IPC: route_planner, task_manager, frenet_path_planner, offroad_planner, audit e
+user_app_server. O clone contém seus headers, mas não as `.a` nem os fontes privados.
+As implementações Docker cobrem somente as chamadas usadas pelos executáveis deste
+perfil e publicam/recebem mensagens reais; não executam os algoritmos privados.
+Modelos com reboque são recusados explicitamente: mantenha `semi_trailer_initial_type 0`.
+
 A imagem retém ferramentas, fontes e bibliotecas de desenvolvimento. Isso conserva
 os symlinks absolutos produzidos pelos Makefiles e facilita a próxima iteração;
 ainda não é uma imagem runtime mínima.
@@ -212,6 +239,10 @@ Fixar também o snapshot apt é melhoria futura. A base **não** foi trocada par
 ```bash
 cd ~/carmen_lcad-docker
 python3 docker/tests/test_infrastructure.py
+
+# Após o build: teste das interfaces IPC com central real e porta dedicada.
+docker compose -f docker/compose.yaml run --rm --entrypoint bash carmen -lc \
+  'cd /opt/carmen/docker/interfaces && make interface_roundtrip && python3 ../tests/test_interfaces.py --central /opt/carmen/bin/central --probe ./interface_roundtrip --logs /logs/interfaces'
 
 # Logs do último ensaio (escolha o diretório mostrado pelo supervisor).
 ls -lt docker/logs

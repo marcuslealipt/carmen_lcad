@@ -44,3 +44,5 @@ src/global/carmen-config.c
 docker/logs/
 docker/generated/
 docker/.env
+docker/interfaces/*.a
+docker/interfaces/interface_roundtrip
