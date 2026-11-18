@@ -7,7 +7,9 @@ Container: Ubuntu 26.04, CPU, sem CUDA. Não há instalação de dependências C
 **Estado: imagem construída e smoke `core` aprovado no ipt-sim-01 em 18/11/2026.**
 O teste confirmou IPC, mapa, processos estáveis, deslocamento e parada. A tentativa
 gráfica falhou: `navigator_gui2` terminou repetidamente com SIGSEGV (sinal 11).
-Há um diagnóstico abaixo que usa a imagem existente, sem reconstrução.
+A pilha identificou instrumentos não inicializados no painel quando a GUI inicia
+sem argumentos. A correção está no fonte; reconstrua a imagem conforme a seção 1.
+A confirmação gráfica no IPT após essa correção continua pendente.
 Os testes executados e seus limites estão em [VALIDACAO.md](VALIDACAO.md).
 Não há afirmação de que a GUI, a localização ou a navegação completa já funcionem.
 
@@ -114,6 +116,7 @@ Todos os módulos compartilham um container com rede `none` e IPC em localhost.
 ## 3. Abrir o mapa e observar o veículo
 
 **Pendente:** o primeiro teste gráfico apresentou SIGSEGV na inicialização da GUI.
+A inicialização dos instrumentos foi corrigida em `src/car_panel_gui/panel.cpp`.
 Os comandos desta seção representam o fluxo pretendido; a renderização ainda não
 foi validada. Para investigar a queda, use o diagnóstico ao final desta seção.
 

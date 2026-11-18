@@ -387,6 +387,11 @@ checkArguments(int argc, char *argv[])
 	int i;
 	int exist_msg = 0;
 
+	// Mesmo sem argumentos, car_panel assina odometria por padrão. O IPC pode
+	// despachar callbacks durante consultas/assinaturas: os instrumentos precisam
+	// existir antes de qualquer operação IPC, inclusive a leitura de parâmetros.
+	initializeComponents();
+
 	if (argc > 1)
 	{
 		carmen_param_check_version(argv[0]);
@@ -397,7 +402,6 @@ checkArguments(int argc, char *argv[])
 
 		carmen_param_install_params(argc, argv, param_list, sizeof(param_list) / sizeof(param_list[0]));
 
-		initializeComponents();
 		for (i = 1; i < argc; i++)
 		{
 			if (strcmp(argv[i], "-type_msg") == 0 && i < argc - 1 && argv[i + 1][0] != '-')
@@ -422,3 +426,4 @@ freeComponents(void)
 	delete lights;
 	delete accelerator;
 }
+

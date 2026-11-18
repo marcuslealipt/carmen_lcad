@@ -136,9 +136,21 @@ python3 docker/tests/test_gui_diagnostics.py
 bash docker/scripts/diagnose-x11.sh  # no IPT, com a imagem já construída e display
 ```
 
-A linha exata da falha da GUI ainda depende do relatório desse diagnóstico no IPT.
+O diagnóstico posterior do IPT (`gui-diagnostic-20261118T225753.902968Z`)
+localizou a falha em `Speedometer::update(float)`, chamada por
+`base_ackerman_odometry_handler` durante `ConfigureMenu`/consultas IPC.
+O fonte revelou que `checkArguments` só criava os instrumentos dentro de `argc > 1`.
+Sem argumentos, o construtor assinava odometria com `speedometer` nulo.
+
+Correção: `initializeComponents()` passou a executar incondicionalmente, antes
+de qualquer consulta de parâmetros ou assinatura IPC. A seleção do tópico padrão
+(odometria) e dos tópicos escolhidos por `-type_msg` foi preservada.
+Um teste C++ da lógica real de startup, com sentinelas no lugar de IPC/instrumentos,
+passou em cinco variantes de argumentos e falhou com o código anterior. Os 13
+testes anteriores também passaram. O teste não executa GTK/OpenGL nem substitui
+o novo build e ensaio X11 no IPT. A correção exige reconstruir a imagem.
 Nenhum aviso do GTK foi suprimido e nenhuma falha de PID foi ignorada para aprovar
-o cenário. Nenhuma correção de crash foi declarada sem essa evidência.
+o cenário. A execução gráfica após a correção ainda não foi confirmada.
 
 ## Estado por etapa
 
@@ -152,7 +164,7 @@ o cenário. Nenhuma correção de crash foi declarada sem essa evidência.
 | Comunicação real mapa/truepos/odometria/heartbeat/proccontrol | Aprovada pelo smoke `core` no IPT |
 | Movimento e parada do veículo simulado | Aprovados pelo smoke `core` no IPT |
 | Filtro localize_ackerman por laser 2D | Integração experimental implementada, não executada |
-| Janela navigator_gui2, mapa e veículo visíveis | Falha SIGSEGV no IPT; diagnóstico da pilha pendente |
+| Janela navigator_gui2, mapa e veículo visíveis | SIGSEGV localizado no painel; fonte corrigido, novo ensaio pendente |
 | Navegação autônoma até uma meta | Cadeia de controle ainda não concluída |
 
 A imagem local e o core estão validados no escopo do smoke. Localização, visualização
