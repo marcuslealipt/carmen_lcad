@@ -1,0 +1,7 @@
+.env
+logs/
+generated/
+__pycache__/
+interfaces/*.o
+interfaces/*.a
+interfaces/interface_roundtrip

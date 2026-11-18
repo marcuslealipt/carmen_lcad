@@ -1,0 +1,33 @@
+name: carmen-docker-v01
+services:
+  carmen:
+    image: carmen-lcad:ubuntu26-v0.1
+    platform: linux/amd64
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        UBUNTU_IMAGE: ${UBUNTU_IMAGE:-ubuntu:26.04}
+        BUILD_JOBS: ${BUILD_JOBS:-2}
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+        SOURCE_REVISION: ${SOURCE_REVISION:-unknown}
+    init: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      CENTRALHOST: localhost
+      OMP_NUM_THREADS: "2"
+      OPENBLAS_NUM_THREADS: "1"
+    volumes:
+      - type: bind
+        source: ./logs
+        target: /logs
+        bind:
+          create_host_path: false
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=256m,mode=1777
+    shm_size: 256m
+    stop_grace_period: 20s
+    command: [--mode, core]

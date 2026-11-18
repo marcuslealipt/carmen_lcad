@@ -490,6 +490,10 @@ simulate_car_and_publish_readings(void *clientdata __attribute__ ((unused)),
 	double timestamp;
 	static double last_timestamp = 0.0;
 
+	// Evita ray-casting/divisão pela resolução zero antes do primeiro mapa IPC.
+	if (!necessary_maps_available)
+		return;
+
 	timestamp = carmen_get_time();
 	if (last_timestamp == 0.0)
 	{
@@ -1335,3 +1339,4 @@ main(int argc, char **argv)
 
 	exit(0);
 }
+

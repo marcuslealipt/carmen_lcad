@@ -1861,6 +1861,28 @@ main(int argc, char **argv)
 	init_localize_map();
 	init_local_maps(map_params);
 
+	// Mapa estático 2D opcional para simulação sem o map_server em blocos.
+	// Sem -static_map, o caminho original de mensagens permanece inalterado.
+	char *static_map_file = NULL;
+	carmen_param_t static_map_param[] = {
+		{(char *) "commandline", (char *) "static_map", CARMEN_PARAM_STRING,
+		 &static_map_file, 0, NULL}
+	};
+	carmen_param_allow_unfound_variables(1);
+	carmen_param_install_params(argc, argv, static_map_param, 1);
+	carmen_param_allow_unfound_variables(0);
+	if (static_map_file != NULL)
+	{
+		static carmen_map_t static_map = {};
+		if (mapping_mode || !use_raw_laser || param.prediction_type != 1)
+			carmen_die("-static_map requires mapping_mode off, raw laser and odometry prediction\n");
+		if (carmen_map_read_gridmap_chunk(static_map_file, &static_map) < 0 ||
+			static_map.config.x_size <= 0 || static_map.config.y_size <= 0)
+			carmen_die("Could not read static simulation map: %s\n", static_map_file);
+		carmen_to_localize_ackerman_map(&static_map, NULL, NULL, &localize_map, &param);
+		necessary_maps_available = 1;
+	}
+
 	define_ipc_messages();
 	subscribe_to_ipc_message();
 
@@ -1875,3 +1897,4 @@ main(int argc, char **argv)
 
 	return (0);
 }
+
