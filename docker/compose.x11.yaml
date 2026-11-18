@@ -1,0 +1,22 @@
+# Overlay opcional: autenticação X11 via cookie. Não exige xhost.
+services:
+  carmen:
+    environment:
+      DISPLAY: ${DISPLAY:?Defina DISPLAY na sessão gráfica local}
+      XAUTHORITY: /tmp/carmen.xauth
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      QT_X11_NO_MITSHM: "1"
+    volumes:
+      - type: bind
+        source: /tmp/.X11-unix
+        target: /tmp/.X11-unix
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ${CARMEN_XAUTH:?Execute docker/scripts/run-x11.sh}
+        target: /tmp/carmen.xauth
+        read_only: true
+        bind:
+          create_host_path: false
+    command: [--mode, core, --gui]
