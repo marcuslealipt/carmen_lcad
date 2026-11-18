@@ -4,10 +4,10 @@ Fork: `marcuslealipt/carmen_lcad`, branch `feat/docker-ubuntu26`.
 Destino: `ipt-sim-01`, Ubuntu 22.04.5 x86_64, Docker Engine + Compose.
 Container: Ubuntu 26.04, CPU, sem CUDA. Não há instalação de dependências CARMEN no host.
 
-**Estado: build iniciado no ipt-sim-01; simulação ainda não validada.** O primeiro log
-confirmou instalação apt, GtkGLExt e phase1, mas o link do simulador parou por falta de
-interfaces de módulos privados. A correção em `docker/interfaces` gera as bibliotecas
-IPC necessárias usando os headers públicos do fork. O build completo precisa ser repetido.
+**Estado: imagem construída e smoke `core` aprovado no ipt-sim-01 em 18/11/2026.**
+O teste confirmou IPC, mapa, processos estáveis, deslocamento e parada. A tentativa
+gráfica falhou: `navigator_gui2` terminou repetidamente com SIGSEGV (sinal 11).
+Há um diagnóstico abaixo que usa a imagem existente, sem reconstrução.
 Os testes executados e seus limites estão em [VALIDACAO.md](VALIDACAO.md).
 Não há afirmação de que a GUI, a localização ou a navegação completa já funcionem.
 
@@ -113,6 +113,10 @@ Todos os módulos compartilham um container com rede `none` e IPC em localhost.
 
 ## 3. Abrir o mapa e observar o veículo
 
+**Pendente:** o primeiro teste gráfico apresentou SIGSEGV na inicialização da GUI.
+Os comandos desta seção representam o fluxo pretendido; a renderização ainda não
+foi validada. Para investigar a queda, use o diagnóstico ao final desta seção.
+
 Use uma sessão gráfica **local** do `ipt-sim-01` com `DISPLAY=:N` e cookie X11
 acessível ao `xauth` já disponível no host. O wrapper recusa SSH X11 forwarding com
 `DISPLAY=localhost:N`, pois esse modo exigiria uma configuração de rede diferente.
@@ -151,6 +155,35 @@ bash docker/scripts/run-x11.sh --mode localized --gui
 Encerre com Ctrl+C no primeiro terminal. O supervisor encerra seus grupos de processos;
 `--rm` remove o container, preservando os logs. Os fontes do checkout não são montados
 por cima dos binários compilados na imagem.
+
+### Diagnosticar a queda da GUI sem reconstruir a imagem
+
+Execute numa sessão gráfica local, após atualizar a branch:
+
+```bash
+cd ~/carmen_lcad-docker
+git switch feat/docker-ubuntu26
+git pull --ff-only origin feat/docker-ubuntu26
+bash docker/scripts/diagnose-x11.sh
+```
+
+Esse wrapper monta apenas `docker/diagnostics` em leitura sobre a imagem existente.
+Inicia um core isolado, espera sua confirmação IPC e abre **uma única** instância de
+`navigator_gui2`, sem reinícios nem comandos de movimento. Compila um capturador de
+falhas com o compilador que já existe na imagem e usa `addr2line` para identificar
+funções e linhas quando há símbolos disponíveis. Não instala pacotes, não usa ptrace,
+não acrescenta capabilities e não altera as restrições de rede/dispositivos.
+
+O relatório é impresso no terminal e salvo em
+`docker/logs/gui-diagnostic-<data-hora-UTC>/report.txt`. Envie esse arquivo para análise.
+Saída 139 representa SIGSEGV; 124 significa que a GUI permaneceu em execução durante
+os 30 segundos de observação e foi encerrada pelo diagnóstico, **sem aprovar a GUI**.
+Outros erros e interrupções também retornam códigos não zero. O core e a GUI são
+encerrados na limpeza, e o cookie temporário é removido.
+
+A captura é auxiliar e best-effort: corrupção de pilha ou falhas no próprio unwinder
+podem impedir uma pilha completa. O timeout continua aplicável. O `LD_PRELOAD` só é
+usado nessa execução de diagnóstico, nunca no smoke ou na execução normal.
 
 ## 4. Investigar o planejador
 

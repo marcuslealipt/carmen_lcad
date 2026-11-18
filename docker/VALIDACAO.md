@@ -1,7 +1,8 @@
 # Validação da v0.1 — 18/11/2026
 
-**A implementação ainda não tem validação funcional de CARMEN em container.**
-Esta distinção é intencional: teste estático aprovado não demonstra execução do veículo.
+**Imagem construída e smoke headless `core` aprovado no ipt-sim-01. A GUI falhou.**
+Os resultados do IPT abaixo vêm dos logs e saídas enviados pelo usuário. O Work
+continua sem Docker/display para repetir o cenário completo.
 
 ## Ambiente disponível
 
@@ -59,7 +60,8 @@ Ele contém várias tentativas com a mesma falha de link.
 - Primeiro bloqueio: `cannot find -lroute_planner_interface` e
   `cannot find -ltask_manager_interface` no link de `simulator_ackerman`.
 - O `exit: Illegal number: -1` é consequência do tratamento de erro no Makefile.
-- A imagem final não foi gerada; não há evidência de execução da simulação no IPT.
+- Nessa primeira tentativa a imagem final não foi gerada. A tentativa posterior,
+  após a correção das interfaces, concluiu o build e passou no smoke descrito abaixo.
 
 ## Correção e teste real das interfaces
 
@@ -99,24 +101,62 @@ docker compose -f docker/compose.yaml run --rm --entrypoint bash carmen -lc \
 Esse resultado valida as interfaces adicionadas. Não comprova a simulação, a GUI,
 a ABI dos prebuilt nem o link completo do CARMEN sob GCC15.
 
+## Build e execução posteriores confirmados no IPT
+
+Os logs posteriores enviados pelo usuário confirmaram compilação completa, inspeção
+ELF/`ldd` dos nove binários e exportação da imagem `carmen-lcad:ubuntu26-v0.1`:
+
+```text
+Image carmen-lcad:ubuntu26-v0.1 Built
+```
+
+O comando `docker compose -f docker/compose.yaml run --rm carmen --mode core --smoke`
+produziu no IPT, no ensaio `/logs/20261118T224533.995115Z`:
+
+```text
+PASS: IPC, mapa, processos estáveis, deslocamento e parada verificados.
+```
+
+O teste seguinte com X11, ensaio `20261118T224647.415918Z`, falhou. O log enviado
+`Eingefügter Text(4).txt` contém reinícios de `navigator_gui2` por SIGNAL code 11
+(SIGSEGV). O GTK chegou a carregar a interface e emitiu avisos de propriedades,
+radio menu e widgets inválidos; esses avisos não localizam, por si, a instrução
+que causou a falha. O `demo.py` recusou continuar ao detectar reinício de PID na
+fase `observe`, antes da fase `drive`. `globalpos=0` é esperado no modo `core`.
+
+Foi acrescentado diagnóstico opt-in de instância única, usando a imagem existente,
+com captura de instrução/pilha e simbolização. Dois testes nativos passaram: falhas
+SIGSEGV intencionais em executáveis PIE e não-PIE foram capturadas, preservaram o
+sinal de saída e apontaram `crash_here` na linha 2; saída normal não foi marcada
+como crash. Os 11 testes de infraestrutura continuam aprovados, assim como as
+sintaxes Python/Bash. **Isso valida o capturador, não a execução gráfica.**
+
+```bash
+python3 docker/tests/test_gui_diagnostics.py
+bash docker/scripts/diagnose-x11.sh  # no IPT, com a imagem já construída e display
+```
+
+A linha exata da falha da GUI ainda depende do relatório desse diagnóstico no IPT.
+Nenhum aviso do GTK foi suprimido e nenhuma falha de PID foi ignorada para aprovar
+o cenário. Nenhuma correção de crash foi declarada sem essa evidência.
+
 ## Estado por etapa
 
 | Etapa | Estado |
 |---|---|
 | Download da base e instalação apt dentro da imagem | Confirmado pelo log do IPT |
 | Compilação GtkGLExt/configure/phase1 na imagem | Confirmada pelo log do IPT |
-| Link dos executáveis na imagem | IPC/global/maptools/param_daemon/proccontrol concluídos; falha no simulador; correção aguarda novo build |
-| Inspeção ELF e `ldd` dos nove binários finais | Verificação implementada, ainda não alcançada |
-| Inicialização de central e param_daemon no cenário | Não executada; central isolado foi validado no teste nativo de interfaces |
-| Comunicação real mapa/truepos/odometria/heartbeat/proccontrol | Smoke implementado, não executado |
-| Movimento e parada do veículo simulado | Smoke implementado, não executado |
+| Link dos executáveis na imagem | Concluído no IPT após correção das interfaces |
+| Inspeção ELF e `ldd` dos nove binários finais | Aprovada no build do IPT |
+| Inicialização de central e param_daemon no cenário | Aprovada pelo smoke `core` no IPT |
+| Comunicação real mapa/truepos/odometria/heartbeat/proccontrol | Aprovada pelo smoke `core` no IPT |
+| Movimento e parada do veículo simulado | Aprovados pelo smoke `core` no IPT |
 | Filtro localize_ackerman por laser 2D | Integração experimental implementada, não executada |
-| Janela navigator_gui2, mapa e veículo visíveis | Não executado; exige display do host |
+| Janela navigator_gui2, mapa e veículo visíveis | Falha SIGSEGV no IPT; diagnóstico da pilha pendente |
 | Navegação autônoma até uma meta | Cadeia de controle ainda não concluída |
 
-O simulador chegou ao link no IPT; localizador e GUI ainda não chegaram à sua fase de
-executáveis. O container pode revelar outras dependências, parâmetros ou incompatibilidades.
-Não há resultado `PASS` da simulação nem imagem publicada como pronta.
+A imagem local e o core estão validados no escopo do smoke. Localização, visualização
+e navegação completa continuam pendentes; a GUI não deve ser considerada funcional.
 
 ## Critério de aceitação no ipt-sim-01
 
